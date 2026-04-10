@@ -1,138 +1,92 @@
 import streamlit as st
-import pandas as pd
+import numpy as np
+import tensorflow as tf
+import joblib
 
-st.set_page_config(page_title="Sleep Apnea App", layout="wide")
+# ----------------------------------
+# LOAD MODEL + SCALER
+# ----------------------------------
+model = tf.keras.models.load_model("sleep_apnea_model.h5")
+scaler = joblib.load("scaler.pkl")
 
-# ------------------ SIDEBAR NAVIGATION ------------------
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Welcome", "Sleep Analysis"])
+# ----------------------------------
+# PAGE DESIGN
+# ----------------------------------
+st.set_page_config(page_title="Sleep Apnea AI", layout="centered")
 
-# ------------------ PAGE 1: WELCOME ------------------
-if page == "Welcome":
+st.title("💤 Sleep Apnea Detection System")
+st.write("AI-powered sleep apnea risk assessment")
 
-    st.title("🫁 Sleep Apnea Monitoring System")
+# ----------------------------------
+# USER INPUTS
+# ----------------------------------
+st.header("Enter Patient Data")
 
-    st.image("sleep_apnea.jpg", use_column_width=True)
+spo2 = st.number_input("SpO₂ (%)", 80, 100, 95)
+heart_rate = st.number_input("Heart Rate (bpm)", 40, 120, 75)
+breathing_rate = st.number_input("Breathing Rate", 10, 30, 16)
+snoring = st.slider("Snoring Level", 0.0, 1.0, 0.3)
+bmi = st.number_input("BMI", 10, 50, 25)
 
-    st.markdown("""
-    ## Welcome!
+# ----------------------------------
+# GENERATE REPORT
+# ----------------------------------
+if st.button("Generate Sleep Report"):
 
-    This system helps monitor and assess the risk of sleep apnea using:
-    - Oxygen saturation (SpO2)
-    - Heart rate
-    - Respiratory rate
-    - Apnea events
+    # Prepare data
+    input_data = np.array([[spo2, heart_rate, breathing_rate, snoring, bmi]])
+    input_scaled = scaler.transform(input_data)
 
-    ### Features:
-    ✔ AHI Calculation  
-    ✔ Risk Assessment  
-    ✔ Severity Classification  
-    ✔ Clinical Recommendations  
+    # AI Prediction
+    prediction = model.predict(input_scaled)[0][0]
 
-    👉 Use the sidebar to start analysis.
-    """)
+    # ----------------------------------
+    # REPORT OUTPUT
+    # ----------------------------------
+    st.title("🧾 Sleep Apnea Report")
 
-# ------------------ PAGE 2: MAIN APP ------------------
-elif page == "Sleep Analysis":
+    # Patient Info
+    st.subheader("Patient Data")
+    st.write(f"SpO₂: {spo2}%")
+    st.write(f"Heart Rate: {heart_rate} bpm")
+    st.write(f"Breathing Rate: {breathing_rate}")
+    st.write(f"Snoring Level: {snoring}")
+    st.write(f"BMI: {bmi}")
 
-    st.title("📊 Sleep Apnea Analysis")
+    # AI Result
+    st.subheader("AI Risk Assessment")
+    st.write(f"Risk Score: {prediction:.2f}")
 
-    # -------- INPUT --------
-    st.markdown("### Patient Data")
+    # ----------------------------------
+    # MEDICAL INTERPRETATION
+    # ----------------------------------
+    st.subheader("Analysis")
 
-    col1, col2, col3 = st.columns(3)
+    if spo2 < 92:
+        st.write("⚠ Low oxygen levels detected")
+    if heart_rate > 90:
+        st.write("⚠ Elevated heart rate")
+    if breathing_rate > 20:
+        st.write("⚠ Abnormal breathing rate")
+    if snoring > 0.7:
+        st.write("⚠ High snoring intensity")
+    if bmi > 30:
+        st.write("⚠ High BMI (risk factor)")
 
-    with col1:
-        spo2 = st.number_input("SpO2 (%)", min_value=50, max_value=100, value=98)
+    # ----------------------------------
+    # FINAL CONCLUSION
+    # ----------------------------------
+    st.subheader("Conclusion")
 
-    with col2:
-        hr = st.number_input("Heart Rate (bpm)", min_value=40, max_value=180, value=70)
+    if prediction > 0.7:
+        st.error("⚠ HIGH RISK OF SLEEP APNEA")
+        st.write("Recommendation: Consult a sleep specialist immediately.")
+    elif prediction > 0.4:
+        st.warning("⚠ MODERATE RISK")
+        st.write("Recommendation: Monitor condition and consider sleep study.")
+    else:
+        st.success("✔ LOW RISK")
+        st.write("Recommendation: Maintain healthy lifestyle.")
 
-    with col3:
-        resp = st.number_input("Respiratory Rate", min_value=5, max_value=40, value=16)
-
-    st.markdown("### Sleep Data")
-
-    col4, col5 = st.columns(2)
-
-    with col4:
-        events = st.number_input("Number of Apnea Events", min_value=0, value=5)
-
-    with col5:
-        hours = st.number_input("Hours of Sleep", min_value=1.0, value=8.0)
-
-    # -------- BUTTON --------
-    if st.button("Analyze"):
-
-        # AHI
-        ahi = events / hours
-
-        # Severity
-        if ahi < 5:
-            severity = "Normal"
-        elif ahi < 15:
-            severity = "Mild"
-        elif ahi < 30:
-            severity = "Moderate"
-        else:
-            severity = "Severe"
-
-        # Risk Score
-        risk_score = (100 - spo2) + (hr / 10) + resp
-
-        # -------- RESULTS --------
-        st.markdown("## Results")
-
-        col6, col7, col8 = st.columns(3)
-        col6.metric("AHI Score", round(ahi, 2))
-        col7.metric("SpO2", spo2)
-        col8.metric("Risk Score", round(risk_score, 2))
-
-        # Alerts
-        if severity == "Severe":
-            st.error("⚠️ Severe Sleep Apnea")
-        elif severity == "Moderate":
-            st.warning("⚠️ Moderate Sleep Apnea")
-        elif severity == "Mild":
-            st.info("ℹ️ Mild Sleep Apnea")
-        else:
-            st.success("✅ Normal")
-
-        st.write(f"### Severity: {severity}")
-
-        # Recommendations
-        st.markdown("## Recommendations")
-
-        if severity == "Severe":
-            st.write("⚠️ Immediate medical consultation recommended.")
-        elif severity == "Moderate":
-            st.write("⚠️ Sleep study advised.")
-        elif severity == "Mild":
-            st.write("✔ Monitor and improve sleep habits.")
-        else:
-            st.write("✔ Maintain healthy lifestyle.")
-
-        # Graph
-        st.markdown("## Sample Trend")
-
-        data = pd.DataFrame({
-            "SpO2": [98, 96, 95, 92, 90],
-            "Heart Rate": [70, 75, 80, 85, 90]
-        })
-
-        st.line_chart(data)
-
-        # Report
-        st.markdown("## Sleep Report")
-
-        st.write(f"AHI: {round(ahi, 2)}")
-        st.write(f"Severity: {severity}")
-        st.write(f"Risk Score: {round(risk_score, 2)}")
-
-        # Save
-        record = pd.DataFrame([[spo2, hr, resp, events, hours, ahi, severity]],
-                              columns=["SpO2", "HR", "Resp", "Events", "Hours", "AHI", "Severity"])
-
-        record.to_csv("records.csv", mode='a', header=False, index=False)
-
-        st.success("Data saved successfully!")
+    st.write("---")
+    st.caption("This is an AI-based estimation and not a medical diagnosis.")
